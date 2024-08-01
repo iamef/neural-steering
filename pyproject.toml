@@ -1,0 +1,24 @@
+[project]
+name = "neural-steering"
+version = "0.0.1-alpha0"
+description = "Package for activation space interventions in neural networks"
+authors = [
+    {name = "Mateusz", email = "mateusz.piotrowski94@gmail.com"},
+]
+dependencies = [
+    "transformer-lens",
+    "torch>=2.0.0",
+    "tqdm"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.5.0",
+]
+requires-python = ">=3.8.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pdm]
+distribution = false
