@@ -109,4 +109,7 @@ class CombinationSteering(SteeringVector):
         return sum((vector._steering_hooks() for vector in self.vectors), [])
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(\n{'\n'.join('  ' + str(v) for v in self.vectors)}\n)"
+        return "{0}(\n{1}\n)".format(
+            self.__class__.__name__,
+            '\n'.join('  ' + str(v) for v in self.vectors)
+        )
