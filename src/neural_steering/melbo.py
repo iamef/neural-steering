@@ -111,6 +111,7 @@ class MELBO:
 
     @torch.enable_grad()
     def _train_single(self, encoding, mask, orthogonal_projection, verbose=True):
+        # joint means multiple prompts and a single steering vector
         if self.training_mode == "joint":
             steering_vector = torch.randn(
                 1,
@@ -119,6 +120,7 @@ class MELBO:
                 requires_grad=True,
                 device=self.model.cfg.device,
             )
+        # 1 vector per prompt
         else:
             steering_vector = torch.randn(
                 encoding.input_ids.shape[0],
