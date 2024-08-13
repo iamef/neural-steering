@@ -7,6 +7,8 @@ from tqdm import tqdm
 from .steering_vector import AdditiveSteering, SteeringVector
 from .utils import create_steering_mask
 
+import wandb
+
 
 class MELBOResult(NamedTuple):
     steering_vectors: Union[List[SteeringVector], List[List[SteeringVector]]]
@@ -62,7 +64,9 @@ class MELBO:
         for param in self.model.parameters():
             param.requires_grad = False
 
-    def fit(self, examples, n_vectors=1, initial_vectors=None, verbose=True):
+    def fit(self, examples, n_vectors=1, initial_vectors=None, verbose=True, log_wandb=False):
+        print(f"{log_wandb=}")
+
         self._freeze_model()  # TODO revert at the end
         encoding = self.model.tokenizer.batch_encode_plus(
             examples, return_tensors="pt", padding=True
@@ -77,8 +81,17 @@ class MELBO:
 
         all_losses = []
         steering_vectors = []
+        
+        pbar = tqdm(
+            range(n_vectors),
+            desc="Vector Number",
+            disable=not verbose,
+        )
 
-        for i in range(n_vectors):
+        for i in pbar:
+            if log_wandb:
+                wandb.log({"vector_number": i})
+            
             if vectors is None:
                 projection = None
             else:
@@ -86,8 +99,11 @@ class MELBO:
                 projection = torch.einsum("nmi,nmj->nij", normed, normed)
 
             steering_vector, losses = self._train_single(
-                encoding, mask, projection, verbose=verbose
+                encoding, mask, projection, verbose=verbose, log_wandb=log_wandb
             )
+            
+            
+
             all_losses.append(losses)
 
             if vectors is None:
@@ -110,7 +126,7 @@ class MELBO:
         return MELBOResult(steering_vectors, torch.stack(all_losses).swapdims(0, 1))
 
     @torch.enable_grad()
-    def _train_single(self, encoding, mask, orthogonal_projection, verbose=True):
+    def _train_single(self, encoding, mask, orthogonal_projection, verbose=True, log_wandb=False):
         # joint means multiple prompts and a single steering vector
         if self.training_mode == "joint":
             steering_vector = torch.randn(
@@ -152,12 +168,12 @@ class MELBO:
 
         losses = []
 
-        pbar = tqdm(
-            range(self.n_iterations),
-            desc="Training iterations",
-            disable=not verbose,
-        )
-        for _ in pbar:
+        # pbar = tqdm(
+        #     range(self.n_iterations),
+        #     desc="Training iterations",
+        #     disable=not verbose,
+        # )
+        for t in range(self.n_iterations):
             steered_src = unsteered_activations + steering_vector
 
             steered_target = self.model.forward(
@@ -192,7 +208,10 @@ class MELBO:
                         dim=-1, keepdim=True
                     )
 
-            pbar.set_postfix({"loss": loss.mean().item()})
+            # pbar.set_postfix({"loss": loss.mean().item()})
+
+            if log_wandb:
+                wandb.log({"epoch": t, "loss" : loss})
 
         return steering_vector, torch.stack(losses).cpu().T
 
