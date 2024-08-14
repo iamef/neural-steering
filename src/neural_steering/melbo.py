@@ -13,6 +13,8 @@ import wandb
 class MELBOResult(NamedTuple):
     steering_vectors: Union[List[SteeringVector], List[List[SteeringVector]]]
     losses: torch.Tensor
+    orig_target_activations: torch.Tensor
+    steered_target_activations: torch.Tensor
 
     def plot_losses(self):
         from matplotlib import pyplot as plt  # ignore
@@ -81,6 +83,8 @@ class MELBO:
 
         all_losses = []
         steering_vectors = []
+        orig_target_activations = []
+        steered_target_activations = []
         
         pbar = tqdm(
             range(n_vectors),
@@ -98,13 +102,13 @@ class MELBO:
                 normed = torch.nn.functional.normalize(vectors, dim=-1)
                 projection = torch.einsum("nmi,nmj->nij", normed, normed)
 
-            steering_vector, losses = self._train_single(
+            steering_vector, losses, orig_target_activation, steered_target_activation = self._train_single(
                 encoding, mask, projection, verbose=verbose, log_wandb=log_wandb
             )
             
-            
-
             all_losses.append(losses)
+            orig_target_activations.append(orig_target_activation)
+            steered_target_activations.append(steered_target_activation)
 
             if vectors is None:
                 vectors = steering_vector.detach()
@@ -123,7 +127,7 @@ class MELBO:
                     ]
                 )
 
-        return MELBOResult(steering_vectors, torch.stack(all_losses).swapdims(0, 1))
+        return MELBOResult(steering_vectors, torch.stack(all_losses).swapdims(0, 1), orig_target_activations, steered_target_activations)
 
     @torch.enable_grad()
     def _train_single(self, encoding, mask, orthogonal_projection, verbose=True, log_wandb=False):
@@ -213,7 +217,8 @@ class MELBO:
             if log_wandb:
                 wandb.log({"epoch": t, "loss" : loss})
 
-        return steering_vector, torch.stack(losses).cpu().T
+
+        return steering_vector, torch.stack(losses).cpu().T, unsteered_activations, steered_target
 
     def _compute_loss(self, steered_target, unsteered_activations, mask):
         return (
